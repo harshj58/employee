@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Portal | harshj58</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 90%; max-width: 420px; border: 1px solid #e2e8f0; }
+        h2 { text-align: center; color: var(--primary); margin-top: 0; }
+        .input-group { margin-bottom: 1rem; }
+        label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+        .hidden { display: none; }
+        .link-grid { display: grid; gap: 8px; margin-top: 20px; }
+        .link-btn { text-decoration: none; background: #f1f5f9; color: var(--primary); padding: 10px; border-radius: 6px; text-align: center; font-weight: 500; font-size: 0.9rem; border: 1px solid #e2e8f0; }
+        .status-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+        .present { color: #16a34a; font-weight: bold; }
+        .pending { color: #94a3b8; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-content">
+    <p style="text-align: center;">Connecting to server...</p>
+</div>
+
+<script>
+    // YOUR CONFIGURATION
+    const SUPABASE_URL = "https://xytfdcqemvjmriitieyi.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dGZkY3FlbXZqbXJpaXRpZXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjg4MjAsImV4cCI6MjA4ODY0NDgyMH0.8kSa4qTAQWmngOJ4Ctp5qTij5oL_NdaW3FL6fC3Vo_U"; // Get this from Settings > API in Supabase
+    
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const requiredRoles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
+
+    async function checkState() {
+        const { data: users, error } = await supabase.from('attendance').select('*');
+        const container = document.getElementById('main-content');
+
+        if (users.length < 5) {
+            // SHOW SIGNUP
+            const registeredRoles = users.map(u => u.role);
+            const remainingRoles = requiredRoles.filter(r => !registeredRoles.includes(r));
+            
+            container.innerHTML = `
+                <h2>Company Signup</h2>
+                <p style="text-align:center; font-size:0.9rem;">${users.length}/5 roles filled</p>
+                <div class="input-group">
+                    <label>Your Name</label>
+                    <input type="text" id="reg-name" placeholder="Full Name">
+                </div>
+                <div class="input-group">
+                    <label>Assign Role</label>
+                    <select id="reg-role">
+                        ${remainingRoles.map(r => `<option value="${r}">${r}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="reg-pass" placeholder="Create a password">
+                </div>
+                <button onclick="handleSignup()">Complete Setup</button>
+            `;
+        } else {
+            // SHOW DASHBOARD
+            const today = new Date().toISOString().split('T')[0];
+            
+            container.innerHTML = `
+                <h2>Company Dashboard</h2>
+                <div id="status-list" style="margin-bottom: 20px;">
+                    ${users.map(u => `
+                        <div class="status-row">
+                            <span><strong>${u.role}:</strong> ${u.name}</span>
+                            <span class="${u.last_marked === today ? 'present' : 'pending'}">
+                                ${u.last_marked === today ? '✓ Present' : 'Pending'}
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="input-group">
+                    <input type="password" id="login-pass" placeholder="Enter password to mark attendance">
+                </div>
+                <button onclick="handleAttendance()">Mark Attendance</button>
+                
+                <div class="link-grid">
+                    <a class="link-btn" href="https://medai.vercel.app" target="_blank">Med AI</a>
+                    <a class="link-btn" href="https://uniai.vercel.app" target="_blank">Uni AI</a>
+                    <a class="link-btn" href="https://weblite2.vercel.app" target="_blank">Weblite</a>
+                    <a class="link-btn" href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
+                </div>
+            `;
+        }
+    }
+
+    async function handleSignup() {
+        const name = document.getElementById('reg-name').value;
+        const role = document.getElementById('reg-role').value;
+        const pass = document.getElementById('reg-pass').value;
+
+        if(!name || !pass) return alert("Please fill all fields");
+
+        const { error } = await supabase.from('attendance').insert([{ name, role, pass }]);
+        if (error) alert("Error: " + error.message);
+        else checkState();
+    }
+
+    async function handleAttendance() {
+        const pass = document.getElementById('login-pass').value;
+        const today = new Date().toISOString().split('T')[0];
+
+        // This checks if the password matches any user and updates their date
+        const { data, error } = await supabase
+            .from('attendance')
+            .update({ last_marked: today })
+            .eq('pass', pass)
+            .select();
+
+        if (data && data.length > 0) {
+            alert("Attendance marked successfully!");
+            checkState();
+        } else {
+            alert("Incorrect password or user not found.");
+        }
+    }
+
+    checkState();
+</script>
+
+</body>
+</html>
