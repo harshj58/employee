@@ -11,27 +11,22 @@
         .grid-container { display: grid; grid-template-columns: 350px 550px; gap: 20px; max-width: 950px; width: 100%; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h2 { color: var(--primary); margin-top: 0; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
-        
         .status-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
         .present { color: #16a34a; font-weight: bold; }
         .pending { color: #94a3b8; font-style: italic; }
-        
         #chat-box { height: 180px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background: #fafafa; border-radius: 8px; }
         #console-box { height: 280px; overflow-y: auto; background: #1a1a1a; color: #4ade80; font-family: 'Consolas', monospace; padding: 15px; border-radius: 8px; font-size: 0.8rem; border: 2px solid #333; }
-        
         input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; }
         button { background: var(--primary); color: white; cursor: pointer; border: none; font-weight: bold; }
         button:hover { background: #1d4ed8; }
-        
         .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
         .links a { font-size: 0.75rem; text-align: center; background: #f8fafc; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: var(--primary); }
-        .msg { margin-bottom: 6px; font-size: 0.85rem; }
     </style>
 </head>
 <body>
 
 <div id="app-root" style="width: 100%; display: flex; justify-content: center;">
-    <div class="card" style="width: 350px;"><h2>Connecting to Server...</h2></div>
+    <div class="card" style="width: 350px;"><h2>Connecting...</h2></div>
 </div>
 
 <script>
@@ -53,96 +48,80 @@
             renderLogin(root);
         }
 
-        // --- REALTIME LISTENERS ---
-        db.channel('db-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async () => {
-              const { data } = await db.from('attendance').select('*');
-              allUsers = data;
-              if(currentUser) refreshAttendanceUI();
-          })
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-              appendMessage(payload.new);
-          })
-          .subscribe();
+        // --- REALTIME REFRESH ---
+        db.channel('system').on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async () => {
+            const { data } = await db.from('attendance').select('*');
+            allUsers = data;
+            if(currentUser) refreshUI();
+        }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            appendMessage(payload.new);
+        }).subscribe();
     }
 
     function renderSignup(root) {
         const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
-        const registered = allUsers.map(u => u.role);
-        const available = roles.filter(r => !registered.includes(r));
+        const taken = allUsers.map(u => u.role);
+        const available = roles.filter(r => !taken.includes(r));
         root.innerHTML = `<div class="card" style="width: 400px;">
-            <h2>Register Staff (${allUsers.length}/5)</h2>
-            <input id="reg-name" placeholder="Full Name">
-            <select id="reg-role">${available.map(r => `<option>${r}</option>`).join('')}</select>
-            <input id="reg-pass" type="password" placeholder="Password">
-            <button onclick="handleSignup()">Join Company</button>
+            <h2>Register Staff</h2>
+            <input id="rn" placeholder="Name"><select id="rr">${available.map(r => `<option>${r}</option>`).join('')}</select>
+            <input id="rp" type="password" placeholder="Password"><button onclick="reg()">Register</button>
         </div>`;
     }
 
     function renderLogin(root) {
         root.innerHTML = `<div class="card" style="width: 400px;">
-            <h2>Employee Verification</h2>
-            <select id="log-role">${allUsers.map(u => `<option value="${u.role}">${u.role} (${u.name})</option>`).join('')}</select>
-            <input id="log-pass" type="password" placeholder="Password">
-            <button onclick="handleLogin()">Login</button>
+            <h2>Verification Required</h2>
+            <select id="lr">${allUsers.map(u => `<option value="${u.role}">${u.role}</option>`).join('')}</select>
+            <input id="lp" type="password" placeholder="Password"><button onclick="login()">Enter Portal</button>
         </div>`;
     }
 
-    async function handleSignup() {
-        const n = document.getElementById('reg-name').value;
-        const r = document.getElementById('reg-role').value;
-        const p = document.getElementById('reg-pass').value;
-        if(!n || !p) return alert("Required fields missing");
+    async function reg() {
+        const n = document.getElementById('rn').value;
+        const r = document.getElementById('rr').value;
+        const p = document.getElementById('rp').value;
         await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
         location.reload();
     }
 
-    async function handleLogin() {
-        const role = document.getElementById('log-role').value;
-        const pass = document.getElementById('log-pass').value;
-        const user = allUsers.find(u => u.role === role && u.pass === pass);
-        if (user) {
-            currentUser = user;
-            renderDashboard();
-            loadMessages();
-        } else { alert("Wrong Password"); }
+    async function login() {
+        const r = document.getElementById('lr').value;
+        const p = document.getElementById('lp').value;
+        const u = allUsers.find(x => x.role === r && x.pass === p);
+        if (u) { currentUser = u; renderDash(); loadMsgs(); } else { alert("Wrong Password"); }
     }
 
-    function renderDashboard() {
-        const root = document.getElementById('app-root');
-        root.innerHTML = `
+    function renderDash() {
+        document.getElementById('app-root').innerHTML = `
             <div class="grid-container">
                 <div class="card">
-                    <h2>Attendance Status</h2>
-                    <div id="status-list"></div>
-                    <button onclick="markPresence()" style="background: #16a34a; margin-top: 20px;">Mark Present</button>
+                    <h2>Attendance</h2>
+                    <div id="s-list"></div>
+                    <button onclick="mark()" style="background:#16a34a;margin-top:20px;">Mark Present</button>
                     <div class="links">
-                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a>
-                        <a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
-                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
-                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
+                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a><a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
+                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a><a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
                 </div>
                 <div class="card">
-                    <h2>Console & Chat</h2>
-                    <div id="console-box"># READY...<br></div>
+                    <h2>Live Chat & Console</h2>
+                    <div id="console-box"># INITIALIZED...<br></div>
                     <div id="chat-box"></div>
-                    <div style="display:flex; gap:5px;">
-                        <input id="m" placeholder="Message or 'code: ...'" style="margin-top:0;">
-                        <button onclick="sendMsg()" style="width:80px; margin-top:0;">Send</button>
-                    </div>
+                    <div style="display:flex;gap:5px;"><input id="m" placeholder="Message or code:"><button onclick="send()" style="width:70px;">Send</button></div>
                 </div>
             </div>`;
-        refreshAttendanceUI();
+        refreshUI();
     }
 
-    async function markPresence() {
-        await db.from('attendance').update({ last_marked: new Date().toDateString() }).eq('id', currentUser.id);
-        alert("Marked!");
+    async function mark() {
+        const today = new Date().toDateString();
+        await db.from('attendance').update({ last_marked: today }).eq('id', currentUser.id);
+        alert("Attendance Marked!");
     }
 
-    function refreshAttendanceUI() {
-        const list = document.getElementById('status-list');
+    function refreshUI() {
+        const list = document.getElementById('s-list');
         if(!list) return;
         const today = new Date().toDateString();
         list.innerHTML = allUsers.map(u => `
@@ -152,29 +131,29 @@
             </div>`).join('');
     }
 
-    async function sendMsg() {
-        const input = document.getElementById('m');
-        if (!input.value) return;
-        const isCode = input.value.startsWith('code:');
-        const content = isCode ? input.value.replace('code:', '').trim() : input.value;
-        await db.from('messages').insert([{ sender_name: currentUser.role, content, is_code: isCode }]);
-        input.value = "";
+    async function send() {
+        const i = document.getElementById('m');
+        if (!i.value) return;
+        const isC = i.value.startsWith('code:');
+        const c = isC ? i.value.replace('code:', '').trim() : i.value;
+        await db.from('messages').insert([{ sender_name: currentUser.role, content: c, is_code: isC }]);
+        i.value = "";
     }
 
-    async function loadMessages() {
+    async function loadMsgs() {
         const { data } = await db.from('messages').select('*').order('created_at', { ascending: true });
         if(data) data.forEach(appendMessage);
     }
 
-    function appendMessage(msg) {
+    function appendMessage(m) {
         const chat = document.getElementById('chat-box');
         const con = document.getElementById('console-box');
         if(!chat || !con) return;
-        if (msg.is_code) {
-            con.innerHTML += `<div style="color:#888; font-size:0.7rem;">// ${msg.sender_name}</div><div>> ${msg.content}</div>`;
+        if (m.is_code) {
+            con.innerHTML += `<div>> [${m.sender_name}]: ${m.content}</div>`;
             con.scrollTop = con.scrollHeight;
         } else {
-            chat.innerHTML += `<div class="msg"><strong>${msg.sender_name}:</strong> ${msg.content}</div>`;
+            chat.innerHTML += `<div><strong>${m.sender_name}:</strong> ${m.content}</div>`;
             chat.scrollTop = chat.scrollHeight;
         }
     }
