@@ -40,21 +40,34 @@
     let employees = [];
 
     async function start() {
-        const { data } = await db.from('attendance').select('*');
+        const { data, error } = await db.from('attendance').select('*');
+        if (error) {
+            console.error("Connection Error:", error);
+            return;
+        }
         employees = data || [];
         const savedRole = localStorage.getItem('logged_in_user_role');
 
         if (employees.length < 5) {
+            // If the database was wiped, clear the old session and show Registration
+            if (savedRole && employees.length === 0) {
+                localStorage.removeItem('logged_in_user_role');
+            }
             renderSignup();
         } else if (savedRole) {
             user = employees.find(u => u.role === savedRole);
-            user ? renderDash() : renderLogin();
+            if (user) {
+                renderDash();
+            } else {
+                // Role in memory doesn't exist in DB anymore
+                localStorage.removeItem('logged_in_user_role');
+                renderLogin();
+            }
         } else {
             renderLogin();
         }
 
         // --- GLOBAL REFRESH LISTENER ---
-        // This listens for ANY change in the database and reloads for everyone
         db.channel('global-sync')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => location.reload())
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => location.reload())
@@ -65,30 +78,49 @@
         const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
         const taken = employees.map(e => e.role);
         const avail = roles.filter(r => !taken.includes(r));
+        
         document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
             <h2>Staff Registration (${employees.length}/5)</h2>
-            <input id="reg-name" placeholder="Name"><select id="reg-role">${avail.map(r => `<option>${r}</option>`).join('')}</select>
-            <input id="reg-pass" type="password" placeholder="Password"><button onclick="handleReg()">Register</button>
+            <input id="reg-name" placeholder="Full Name">
+            <select id="reg-role">${avail.map(r => `<option>${r}</option>`).join('')}</select>
+            <input id="reg-pass" type="password" placeholder="Password">
+            <button id="reg-btn" onclick="handleReg()">Register Account</button>
         </div>`;
     }
 
     async function handleReg() {
-        const n = document.getElementById('reg-name').value, r = document.getElementById('reg-role').value, p = document.getElementById('reg-pass').value;
-        if(!n || !p) return alert("Fill all fields");
-        await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
-        // No manual reload needed, the listener handles it
+        const n = document.getElementById('reg-name').value, 
+              r = document.getElementById('reg-role').value, 
+              p = document.getElementById('reg-pass').value;
+        
+        if(!n || !p) return alert("Please fill all fields");
+        
+        const btn = document.getElementById('reg-btn');
+        btn.disabled = true; btn.innerText = "Saving...";
+
+        const { error } = await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
+        
+        if (error) {
+            alert("Registration failed: " + error.message);
+            btn.disabled = false; btn.innerText = "Register Account";
+        } else {
+            // This manually reloads to move to the next registration slot
+            location.reload(); 
+        }
     }
 
     function renderLogin() {
         document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
             <h2>Portal Verification</h2>
-            <select id="log-role">${employees.map(e => `<option value="${e.role}">${e.role}</option>`).join('')}</select>
-            <input id="log-pass" type="password" placeholder="Password"><button onclick="handleLogin()">Login</button>
+            <select id="log-role">${employees.map(e => `<option value="${e.role}">${e.role} (${e.name})</option>`).join('')}</select>
+            <input id="log-pass" type="password" placeholder="Password">
+            <button onclick="handleLogin()">Enter Dashboard</button>
         </div>`;
     }
 
     function handleLogin() {
-        const r = document.getElementById('log-role').value, p = document.getElementById('log-pass').value;
+        const r = document.getElementById('log-role').value, 
+              p = document.getElementById('log-pass').value;
         const found = employees.find(x => x.role === r && x.pass === p);
         if (found) {
             user = found;
@@ -110,7 +142,7 @@
                         <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
                         <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
-                    <button class="logout-btn" onclick="logout()">Logout</button>
+                    <button class="logout-btn" onclick="logout()">Logout / Reset</button>
                 </div>
                 <div class="card">
                     <h2>Live Chat & Console</h2>
@@ -129,6 +161,7 @@
     async function handleMark() {
         document.getElementById('mark-btn').disabled = true;
         await db.from('attendance').update({ last_marked: new Date().toDateString() }).eq('id', user.id);
+        location.reload();
     }
 
     async function handleSend() {
@@ -138,6 +171,7 @@
         const isC = input.value.trim().startsWith('code:');
         const content = isC ? input.value.replace('code:', '').trim() : input.value;
         await db.from('messages').insert([{ sender_name: user.role, content: content, is_code: isC }]);
+        location.reload();
     }
 
     function updateListUI() {
