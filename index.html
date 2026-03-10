@@ -7,28 +7,28 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --blue: #2563eb; --bg: #f8fafc; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
         .grid { display: grid; grid-template-columns: 350px 600px; gap: 20px; max-width: 1000px; width: 100%; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: fit-content; }
         h2 { color: var(--blue); margin: 0 0 15px 0; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
         .status-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
         .present { color: #16a34a; font-weight: bold; background: #f0fdf4; padding: 2px 8px; border-radius: 4px; }
         .pending { color: #94a3b8; font-style: italic; }
         #chat { height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 10px; border-radius: 8px; background: #fff; }
-        #console { height: 350px; overflow-y: auto; background: #0f172a; color: #10b981; font-family: 'Consolas', monospace; padding: 15px; border-radius: 8px; font-size: 0.8rem; border: 2px solid #1e293b; line-height: 1.4; white-space: pre-wrap; word-break: break-all; }
+        #console { height: 400px; overflow-y: auto; background: #0f172a; color: #10b981; font-family: 'Consolas', monospace; padding: 15px; border-radius: 8px; font-size: 0.8rem; border: 2px solid #1e293b; line-height: 1.4; white-space: pre-wrap; word-break: break-all; }
         input, textarea, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 0.9rem; }
-        textarea { height: 60px; resize: vertical; }
+        textarea { height: 80px; resize: vertical; }
         button { background: var(--blue); color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #94a3b8; cursor: not-allowed; }
+        button:disabled { background: #94a3b8; cursor: wait; }
         .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
-        .links a { font-size: 0.75rem; text-align: center; background: #fff; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: var(--blue); }
+        .links a { font-size: 0.75rem; text-align: center; background: #fff; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: var(--blue); font-weight: 500; }
         .logout-btn { background: #64748b; font-size: 0.75rem; margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div id="root" style="width: 100%; display: flex; justify-content: center;">
-    <div class="card"><h2>Connecting...</h2></div>
+    <div class="card"><h2>Connecting to harshj58 server...</h2></div>
 </div>
 
 <script>
@@ -42,32 +42,57 @@
     async function start() {
         const { data } = await db.from('attendance').select('*');
         employees = data || [];
-        const savedUser = localStorage.getItem('logged_in_user');
+        const savedRole = localStorage.getItem('logged_in_user_role');
 
         if (employees.length < 5) {
             renderSignup();
-        } else if (savedUser) {
-            user = employees.find(u => u.role === savedUser);
+        } else if (savedRole) {
+            user = employees.find(u => u.role === savedRole);
             user ? renderDash() : renderLogin();
         } else {
             renderLogin();
         }
+
+        // --- GLOBAL REFRESH LISTENER ---
+        // This listens for ANY change in the database and reloads for everyone
+        db.channel('global-sync')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => location.reload())
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => location.reload())
+          .subscribe();
+    }
+
+    function renderSignup() {
+        const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
+        const taken = employees.map(e => e.role);
+        const avail = roles.filter(r => !taken.includes(r));
+        document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
+            <h2>Staff Registration (${employees.length}/5)</h2>
+            <input id="reg-name" placeholder="Name"><select id="reg-role">${avail.map(r => `<option>${r}</option>`).join('')}</select>
+            <input id="reg-pass" type="password" placeholder="Password"><button onclick="handleReg()">Register</button>
+        </div>`;
+    }
+
+    async function handleReg() {
+        const n = document.getElementById('reg-name').value, r = document.getElementById('reg-role').value, p = document.getElementById('reg-pass').value;
+        if(!n || !p) return alert("Fill all fields");
+        await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
+        // No manual reload needed, the listener handles it
     }
 
     function renderLogin() {
         document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
-            <h2>Portal Login</h2>
-            <select id="lr">${employees.map(e => `<option value="${e.role}">${e.role}</option>`).join('')}</select>
-            <input id="lp" type="password" placeholder="Password"><button onclick="doLogin()">Login</button>
+            <h2>Portal Verification</h2>
+            <select id="log-role">${employees.map(e => `<option value="${e.role}">${e.role}</option>`).join('')}</select>
+            <input id="log-pass" type="password" placeholder="Password"><button onclick="handleLogin()">Login</button>
         </div>`;
     }
 
-    function doLogin() {
-        const r = document.getElementById('lr').value, p = document.getElementById('lp').value;
+    function handleLogin() {
+        const r = document.getElementById('log-role').value, p = document.getElementById('log-pass').value;
         const found = employees.find(x => x.role === r && x.pass === p);
         if (found) {
             user = found;
-            localStorage.setItem('logged_in_user', user.role);
+            localStorage.setItem('logged_in_user_role', user.role);
             renderDash();
         } else alert("Wrong Password");
     }
@@ -78,58 +103,44 @@
                 <div class="card">
                     <h2>Attendance Panel</h2>
                     <div id="list-container"></div>
-                    <button id="mark-btn" onclick="doMark()" style="background:#16a34a;margin-top:15px;">Mark Present</button>
+                    <button id="mark-btn" onclick="handleMark()" style="background:#16a34a;margin-top:15px;">Mark Present</button>
                     <div class="links">
-                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a><a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
-                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a><a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
+                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a>
+                        <a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
+                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
+                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
-                    <button class="logout-btn" onclick="logout()">Switch Account</button>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
                 <div class="card">
                     <h2>Live Chat & Console</h2>
                     <div id="console"># SYSTEM ONLINE...</div>
                     <div id="chat"></div>
                     <div style="display:flex;flex-direction:column;">
-                        <textarea id="m" placeholder="Message or 'code: ...'"></textarea>
-                        <button id="send-btn" onclick="doSend()">Send Message</button>
+                        <textarea id="msg-input" placeholder="Message or 'code: ...'"></textarea>
+                        <button id="send-btn" onclick="handleSend()">Send Message</button>
                     </div>
                 </div>
             </div>`;
-        updateAttendanceList();
-        loadMessages();
+        updateListUI();
+        loadHistory();
     }
 
-    async function doMark() {
-        const btn = document.getElementById('mark-btn');
-        btn.disabled = true; btn.innerText = "Saving...";
+    async function handleMark() {
+        document.getElementById('mark-btn').disabled = true;
         await db.from('attendance').update({ last_marked: new Date().toDateString() }).eq('id', user.id);
-        location.reload(); 
     }
 
-    async function doSend() {
-        const i = document.getElementById('m'), btn = document.getElementById('send-btn');
-        if(!i.value) return;
-        
-        btn.disabled = true; btn.innerText = "Processing Massive Data...";
-        
-        const isC = i.value.startsWith('code:');
-        const content = isC ? i.value.replace('code:', '').trim() : i.value;
-        
-        const { error } = await db.from('messages').insert([{ 
-            sender_name: user.role, 
-            content: content, 
-            is_code: isC 
-        }]);
-
-        if (error) {
-            alert("Database Error: Code might be too large. Try a smaller snippet.");
-            btn.disabled = false; btn.innerText = "Send Message";
-        } else {
-            location.reload();
-        }
+    async function handleSend() {
+        const input = document.getElementById('msg-input');
+        if(!input.value) return;
+        document.getElementById('send-btn').disabled = true;
+        const isC = input.value.trim().startsWith('code:');
+        const content = isC ? input.value.replace('code:', '').trim() : input.value;
+        await db.from('messages').insert([{ sender_name: user.role, content: content, is_code: isC }]);
     }
 
-    function updateAttendanceList() {
+    function updateListUI() {
         const div = document.getElementById('list-container'), today = new Date().toDateString();
         div.innerHTML = employees.map(e => `
             <div class="status-row">
@@ -138,7 +149,7 @@
             </div>`).join('');
     }
 
-    async function loadMessages() {
+    async function loadHistory() {
         const { data } = await db.from('messages').select('*').order('created_at', { ascending: true });
         if(data) {
             const chat = document.getElementById('chat'), con = document.getElementById('console');
@@ -150,20 +161,7 @@
         }
     }
 
-    function logout() { localStorage.removeItem('logged_in_user'); location.reload(); }
-    async function doReg() {
-        const n = document.getElementById('rn').value, r = document.getElementById('rr').value, p = document.getElementById('rp').value;
-        await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
-        location.reload(); 
-    }
-    function renderSignup() {
-        const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"], reg = employees.map(e => e.role), avail = roles.filter(r => !reg.includes(r));
-        document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
-            <h2>Registration</h2>
-            <input id="rn" placeholder="Name"><select id="rr">${avail.map(r => `<option>${r}</option>`).join('')}</select>
-            <input id="rp" type="password" placeholder="Password"><button onclick="doReg()">Register</button>
-        </div>`;
-    }
+    function logout() { localStorage.removeItem('logged_in_user_role'); location.reload(); }
 
     start();
 </script>
