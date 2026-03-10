@@ -2,84 +2,107 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Company Portal</title>
+    <title>Company Portal | harshj58</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background: #f0f2f5; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; }
-        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; }
-        .links a { display: inline-block; margin-right: 10px; color: #007bff; text-decoration: none; font-size: 14px; }
-        .present { color: green; font-weight: bold; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; justify-content: center; padding: 40px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 380px; }
+        h2 { color: #2563eb; text-align: center; margin-bottom: 20px; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 14px; }
+        button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #1d4ed8; }
+        .links { margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .links a { background: #f8fafc; padding: 8px; border-radius: 5px; text-decoration: none; color: #2563eb; font-size: 12px; text-align: center; border: 1px solid #e2e8f0; }
+        .status-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .present { color: #16a34a; font-weight: bold; }
+        .pending { color: #94a3b8; font-style: italic; }
     </style>
 </head>
 <body>
 
 <div class="card" id="app">
     <h2>Connecting...</h2>
-    <p>If this stays for more than 5 seconds, check your SQL Editor in Supabase.</p>
+    <p style="text-align: center; font-size: 12px; color: #666;">If this takes long, ensure you ran the SQL script in Supabase.</p>
 </div>
 
 <script>
+    // 1. CONFIGURATION (Use 'db' instead of 'supabase' to avoid the error)
     const S_URL = "https://xytfdcqemvjmriitieyi.supabase.co";
-    const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dGZkY3FlbXZqbXJpaXRpZXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjg4MjAsImV4cCI6MjA4ODY0NDgyMH0.8kSa4qTAQWmngOJ4Ctp5qTij5oL_NdaW3FL6fC3Vo_U"; // <--- PUT YOUR KEY HERE
-    const supabase = supabase.createClient(S_URL, S_KEY);
+    const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dGZkY3FlbXZqbXJpaXRpZXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjg4MjAsImV4cCI6MjA4ODY0NDgyMH0.8kSa4qTAQWmngOJ4Ctp5qTij5oL_NdaW3FL6fC3Vo_U"; 
+    const db = supabase.createClient(S_URL, S_KEY);
 
     async function start() {
         const app = document.getElementById('app');
         try {
-            // Test the connection
-            const { data: users, error } = await supabase.from('attendance').select('*');
+            const { data: users, error } = await db.from('attendance').select('*');
             if (error) throw error;
 
             if (users.length < 5) {
+                // PHASE 1: SIGNUP
+                const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
+                const taken = users.map(u => u.role);
+                const available = roles.filter(r => !taken.includes(r));
+
                 app.innerHTML = `
-                    <h2>Company Signup</h2>
-                    <p>${users.length}/5 Roles Active</p>
+                    <h2>Company Setup</h2>
+                    <p style="text-align:center;">${users.length}/5 Roles Registered</p>
                     <input id="n" placeholder="Full Name">
-                    <select id="r">
-                        <option>CEO</option><option>VICE PRESIDENT</option>
-                        <option>STOCK HANDLER</option><option>LAWYER</option><option>EMPLOYEE</option>
-                    </select>
-                    <input id="p" type="password" placeholder="Password">
-                    <button onclick="save()">Register</button>
+                    <select id="r">${available.map(r => `<option>${r}</option>`).join('')}</select>
+                    <input id="p" type="password" placeholder="Set Password">
+                    <button onclick="register()">Register Account</button>
                 `;
             } else {
+                // PHASE 2: DASHBOARD
                 const today = new Date().toDateString();
                 app.innerHTML = `
-                    <h2>Attendance</h2>
-                    ${users.map(u => `
-                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                            <span>${u.role}</span>
-                            <span class="${u.last_marked === today ? 'present' : ''}">${u.last_marked === today ? '✓' : '...'}</span>
-                        </div>
-                    `).join('')}
-                    <input id="lp" type="password" placeholder="Enter password">
-                    <button onclick="mark()">Mark Present</button>
-                    <div class="links" style="margin-top:20px;">
-                        <a href="https://medai.vercel.app">Med AI</a>
-                        <a href="https://uniai.vercel.app">Uni AI</a>
+                    <h2>Attendance Dashboard</h2>
+                    <div style="margin-bottom: 20px;">
+                        ${users.map(u => `
+                            <div class="status-row">
+                                <span><strong>${u.role}:</strong> ${u.name}</span>
+                                <span class="${u.last_marked === today ? 'present' : 'pending'}">
+                                    ${u.last_marked === today ? '✓ Present' : 'Pending'}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <input id="lp" type="password" placeholder="Your Password">
+                    <button onclick="mark()">Mark My Attendance</button>
+                    
+                    <div class="links">
+                        <a href="https://medai.vercel.app" target="_blank">Med AI</a>
+                        <a href="https://uniai.vercel.app" target="_blank">Uni AI</a>
+                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
+                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
                 `;
             }
         } catch (e) {
-            app.innerHTML = `<h2 style="color:red">Setup Error</h2><p>${e.message}</p><p>Check if the table 'attendance' exists in your Supabase dashboard.</p>`;
+            app.innerHTML = `<h2 style="color:red">Setup Error</h2><p style="font-size:12px;">${e.message}</p>`;
         }
     }
 
-    async function save() {
+    async function register() {
         const name = document.getElementById('n').value;
         const role = document.getElementById('r').value;
         const pass = document.getElementById('p').value;
-        const { error } = await supabase.from('attendance').insert([{ name, role, pass, last_marked: "" }]);
+        if (!name || !pass) return alert("Fill all fields");
+        
+        const { error } = await db.from('attendance').insert([{ name, role, pass, last_marked: "" }]);
         if (error) alert(error.message); else start();
     }
 
     async function mark() {
         const pass = document.getElementById('lp').value;
         const today = new Date().toDateString();
-        const { data, error } = await supabase.from('attendance').update({ last_marked: today }).eq('pass', pass).select();
-        if (data && data.length > 0) { alert("Done!"); start(); } else { alert("Wrong Password"); }
+        const { data, error } = await db.from('attendance').update({ last_marked: today }).eq('pass', pass).select();
+        
+        if (data && data.length > 0) {
+            alert("Attendance recorded for today!");
+            start();
+        } else {
+            alert("Incorrect password!");
+        }
     }
 
     start();
