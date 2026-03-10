@@ -2,31 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Company Portal | harshj58</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; margin: 0; }
+        :root { --primary: #2563eb; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; margin: 0; }
         .grid-container { display: grid; grid-template-columns: 350px 550px; gap: 20px; max-width: 950px; width: 100%; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h2 { color: #2563eb; margin-top: 0; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        h2 { color: var(--primary); margin-top: 0; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
         
-        /* Attendance List */
         .status-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
         .present { color: #16a34a; font-weight: bold; }
         .pending { color: #94a3b8; font-style: italic; }
         
-        /* Chat & Console */
         #chat-box { height: 180px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background: #fafafa; border-radius: 8px; }
         #console-box { height: 280px; overflow-y: auto; background: #1a1a1a; color: #4ade80; font-family: 'Consolas', monospace; padding: 15px; border-radius: 8px; font-size: 0.8rem; border: 2px solid #333; }
         
         input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; }
-        button { background: #2563eb; color: white; cursor: pointer; border: none; font-weight: bold; }
+        button { background: var(--primary); color: white; cursor: pointer; border: none; font-weight: bold; }
         button:hover { background: #1d4ed8; }
         
         .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
-        .links a { font-size: 0.75rem; text-align: center; background: #f8fafc; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: #2563eb; }
-        .msg { margin-bottom: 6px; font-size: 0.85rem; border-bottom: 1px solid #f8fafc; }
-        .hidden { display: none !important; }
+        .links a { font-size: 0.75rem; text-align: center; background: #f8fafc; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: var(--primary); }
+        .msg { margin-bottom: 6px; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -53,110 +52,104 @@
         } else {
             renderLogin(root);
         }
+
+        // --- REALTIME LISTENERS ---
+        db.channel('db-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, async () => {
+              const { data } = await db.from('attendance').select('*');
+              allUsers = data;
+              if(currentUser) refreshAttendanceUI();
+          })
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+              appendMessage(payload.new);
+          })
+          .subscribe();
     }
 
     function renderSignup(root) {
         const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
         const registered = allUsers.map(u => u.role);
         const available = roles.filter(r => !registered.includes(r));
-        
         root.innerHTML = `<div class="card" style="width: 400px;">
             <h2>Register Staff (${allUsers.length}/5)</h2>
-            <input id="reg-name" placeholder="Enter Full Name">
+            <input id="reg-name" placeholder="Full Name">
             <select id="reg-role">${available.map(r => `<option>${r}</option>`).join('')}</select>
-            <input id="reg-pass" type="password" placeholder="Create Secret Password">
-            <button onclick="handleSignup()">Complete Registration</button>
+            <input id="reg-pass" type="password" placeholder="Password">
+            <button onclick="handleSignup()">Join Company</button>
         </div>`;
     }
 
     function renderLogin(root) {
         root.innerHTML = `<div class="card" style="width: 400px;">
             <h2>Employee Verification</h2>
-            <p style="font-size: 0.8rem; color: #666;">Please verify your identity to access the portal.</p>
-            <select id="log-role">
-                ${allUsers.map(u => `<option value="${u.role}">${u.role} (${u.name})</option>`).join('')}
-            </select>
-            <input id="log-pass" type="password" placeholder="Enter Your Password">
-            <button onclick="handleLogin()">Verify & Enter Portal</button>
+            <select id="log-role">${allUsers.map(u => `<option value="${u.role}">${u.role} (${u.name})</option>`).join('')}</select>
+            <input id="log-pass" type="password" placeholder="Password">
+            <button onclick="handleLogin()">Login</button>
         </div>`;
-    }
-
-    function renderDashboard() {
-        const root = document.getElementById('app-root');
-        const today = new Date().toDateString();
-        
-        root.innerHTML = `
-            <div class="grid-container">
-                <div class="card">
-                    <h2>Attendance Status</h2>
-                    <div id="status-list">
-                        ${allUsers.map(u => `
-                            <div class="status-row">
-                                <span><strong>${u.role}:</strong> ${u.name}</span>
-                                <span class="${u.last_marked === today ? 'present' : 'pending'}">
-                                    ${u.last_marked === today ? '✓ Present' : 'Pending'}
-                                </span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <button onclick="markPresence()" style="background: #16a34a; margin-top: 20px;">Mark My Attendance for Today</button>
-                    
-                    <div class="links">
-                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a>
-                        <a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
-                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
-                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
-                    </div>
-                    <button onclick="location.reload()" style="background:#64748b; font-size:0.7rem; padding:5px; margin-top:20px;">Logout</button>
-                </div>
-                
-                <div class="card">
-                    <h2>Console & Team Chat</h2>
-                    <div id="console-box"># CONSOLE ONLINE...<br></div>
-                    <div id="chat-box"></div>
-                    <div style="display:flex; gap:5px;">
-                        <input id="m" placeholder="Chat or 'code: ...'" style="margin-top:0;">
-                        <button onclick="sendMsg()" style="width:80px; margin-top:0;">Send</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        loadMessages();
-        // Subscribe to real-time updates
-        db.channel('room1').on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, loadMessages).subscribe();
-        db.channel('room2').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'attendance' }, async () => {
-            const { data } = await db.from('attendance').select('*');
-            allUsers = data;
-            if(currentUser) refreshAttendanceList();
-        }).subscribe();
     }
 
     async function handleSignup() {
         const n = document.getElementById('reg-name').value;
         const r = document.getElementById('reg-role').value;
         const p = document.getElementById('reg-pass').value;
-        if(!n || !p) return alert("All fields required");
+        if(!n || !p) return alert("Required fields missing");
         await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
-        init();
+        location.reload();
     }
 
     async function handleLogin() {
         const role = document.getElementById('log-role').value;
         const pass = document.getElementById('log-pass').value;
-        
         const user = allUsers.find(u => u.role === role && u.pass === pass);
         if (user) {
             currentUser = user;
             renderDashboard();
-        } else {
-            alert("Incorrect Password for " + role);
-        }
+            loadMessages();
+        } else { alert("Wrong Password"); }
+    }
+
+    function renderDashboard() {
+        const root = document.getElementById('app-root');
+        root.innerHTML = `
+            <div class="grid-container">
+                <div class="card">
+                    <h2>Attendance Status</h2>
+                    <div id="status-list"></div>
+                    <button onclick="markPresence()" style="background: #16a34a; margin-top: 20px;">Mark Present</button>
+                    <div class="links">
+                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a>
+                        <a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
+                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
+                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>Console & Chat</h2>
+                    <div id="console-box"># READY...<br></div>
+                    <div id="chat-box"></div>
+                    <div style="display:flex; gap:5px;">
+                        <input id="m" placeholder="Message or 'code: ...'" style="margin-top:0;">
+                        <button onclick="sendMsg()" style="width:80px; margin-top:0;">Send</button>
+                    </div>
+                </div>
+            </div>`;
+        refreshAttendanceUI();
     }
 
     async function markPresence() {
+        await db.from('attendance').update({ last_marked: new Date().toDateString() }).eq('id', currentUser.id);
+        alert("Marked!");
+    }
+
+    function refreshAttendanceUI() {
+        const list = document.getElementById('status-list');
+        if(!list) return;
         const today = new Date().toDateString();
-        await db.from('attendance').update({ last_marked: today }).eq('id', currentUser.id);
-        alert("Attendance Marked!");
+        list.innerHTML = allUsers.map(u => `
+            <div class="status-row">
+                <span><strong>${u.role}:</strong> ${u.name}</span>
+                <span class="${u.last_marked === today ? 'present' : 'pending'}">${u.last_marked === today ? '✓ Present' : 'Pending'}</span>
+            </div>`).join('');
     }
 
     async function sendMsg() {
@@ -170,36 +163,20 @@
 
     async function loadMessages() {
         const { data } = await db.from('messages').select('*').order('created_at', { ascending: true });
+        if(data) data.forEach(appendMessage);
+    }
+
+    function appendMessage(msg) {
         const chat = document.getElementById('chat-box');
         const con = document.getElementById('console-box');
         if(!chat || !con) return;
-        
-        chat.innerHTML = "";
-        con.innerHTML = "# CONSOLE ONLINE...<br>";
-        
-        data.forEach(msg => {
-            if (msg.is_code) {
-                con.innerHTML += `<div style="color:#888; font-size:0.7rem;">// ${msg.sender_name}</div>`;
-                con.innerHTML += `<div>> ${msg.content}</div>`;
-            } else {
-                chat.innerHTML += `<div class="msg"><strong>${msg.sender_name}:</strong> ${msg.content}</div>`;
-            }
-        });
-        chat.scrollTop = chat.scrollHeight;
-        con.scrollTop = con.scrollHeight;
-    }
-
-    function refreshAttendanceList() {
-        const list = document.getElementById('status-list');
-        const today = new Date().toDateString();
-        list.innerHTML = allUsers.map(u => `
-            <div class="status-row">
-                <span><strong>${u.role}:</strong> ${u.name}</span>
-                <span class="${u.last_marked === today ? 'present' : 'pending'}">
-                    ${u.last_marked === today ? '✓ Present' : 'Pending'}
-                </span>
-            </div>
-        `).join('');
+        if (msg.is_code) {
+            con.innerHTML += `<div style="color:#888; font-size:0.7rem;">// ${msg.sender_name}</div><div>> ${msg.content}</div>`;
+            con.scrollTop = con.scrollHeight;
+        } else {
+            chat.innerHTML += `<div class="msg"><strong>${msg.sender_name}:</strong> ${msg.content}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        }
     }
 
     init();
