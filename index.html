@@ -2,106 +2,162 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Company Portal | harshj58</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 40px; background: #f0f2f5; color: #1e293b; }
-        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        h2 { color: #2563eb; text-align: center; margin-top: 0; }
-        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 1rem; }
-        button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        button:hover { background: #1d4ed8; }
-        .status-box { margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-        .status-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #f1f5f9; background: #fff; }
-        .status-row:last-child { border-bottom: none; }
-        .present { color: #16a34a; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .grid-container { display: grid; grid-template-columns: 350px 500px; gap: 20px; max-width: 950px; width: 100%; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { color: #2563eb; margin-top: 0; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        
+        .status-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        .present { color: #16a34a; font-weight: bold; background: #f0fdf4; border-radius: 4px; padding: 2px 6px; }
         .pending { color: #94a3b8; font-style: italic; }
-        .links { margin-top: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #eee; padding-top: 20px; }
-        .link-btn { background: #f8fafc; color: #2563eb; padding: 10px; border-radius: 6px; text-decoration: none; text-align: center; font-size: 0.85rem; border: 1px solid #e2e8f0; font-weight: 500; }
+        
+        #chat-box { height: 180px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; background: #fafafa; border-radius: 8px; }
+        #console-box { height: 250px; overflow-y: auto; background: #1e1e1e; color: #00ff00; font-family: 'Consolas', monospace; padding: 15px; border-radius: 8px; font-size: 0.8rem; line-height: 1.4; border: 2px solid #333; }
+        
+        input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; }
+        button { background: #2563eb; color: white; cursor: pointer; border: none; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #1d4ed8; }
+        
+        .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+        .links a { font-size: 0.75rem; text-align: center; background: #f8fafc; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: #2563eb; }
+        .msg { margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
     </style>
 </head>
 <body>
 
-<div class="card" id="app">
-    <h2 style="color: #64748b;">Connecting...</h2>
+<div id="app-root" class="grid-container">
+    <div class="card"><h2>Connecting to harshj58 server...</h2></div>
 </div>
 
 <script>
-    // --- CONFIGURATION ---
     const S_URL = "https://xytfdcqemvjmriitieyi.supabase.co";
-    const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dGZkY3FlbXZqbXJpaXRpZXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjg4MjAsImV4cCI6MjA4ODY0NDgyMH0.8kSa4qTAQWmngOJ4Ctp5qTij5oL_NdaW3FL6fC3Vo_U"; 
+    const S_KEY = "PASTE_YOUR_ANON_KEY_HERE"; 
     const db = supabase.createClient(S_URL, S_KEY);
+    let currentUser = null;
+    const allRoles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
 
     async function start() {
-        const app = document.getElementById('app');
-        try {
-            const { data: users, error } = await db.from('attendance').select('*');
-            if (error) throw error;
+        const { data: users, error } = await db.from('attendance').select('*');
+        const root = document.getElementById('app-root');
 
-            if (users.length < 5) {
-                const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
-                const taken = users.map(u => u.role);
-                const available = roles.filter(r => !taken.includes(r));
-
-                app.innerHTML = `
-                    <h2>Company Setup</h2>
-                    <p style="text-align:center;">Step: ${users.length}/5 Users Joined</p>
-                    <input id="n" placeholder="Your Full Name">
-                    <select id="r">${available.map(r => `<option>${r}</option>`).join('')}</select>
-                    <input id="p" type="password" placeholder="Create Password">
-                    <button onclick="register()">Register Account</button>
-                `;
-            } else {
-                const today = new Date().toDateString();
-                app.innerHTML = `
+        if (users.length < 5) {
+            const registered = users.map(u => u.role);
+            const available = allRoles.filter(r => !registered.includes(r));
+            root.innerHTML = `<div class="card">
+                <h2>Company Signup (${users.length}/5)</h2>
+                <input id="n" placeholder="Your Name">
+                <select id="r">${available.map(r => `<option>${r}</option>`).join('')}</select>
+                <input id="p" type="password" placeholder="Set Password">
+                <button onclick="doReg()">Complete Signup</button>
+            </div>`;
+        } else {
+            const today = new Date().toDateString();
+            root.innerHTML = `
+                <div class="card">
                     <h2>Attendance Panel</h2>
-                    <div class="status-box">
+                    <div style="margin-bottom:15px;">
                         ${users.map(u => `
                             <div class="status-row">
-                                <span><strong>${u.role}:</strong> ${u.name}</span>
+                                <span><strong>${u.role}</strong></span>
                                 <span class="${u.last_marked === today ? 'present' : 'pending'}">
                                     ${u.last_marked === today ? '✓ Present' : 'Pending'}
                                 </span>
                             </div>
                         `).join('')}
                     </div>
-                    <input id="lp" type="password" placeholder="Enter Password">
-                    <button onclick="mark()">Mark Attendance</button>
+                    
+                    <label style="font-size:0.8rem; font-weight:bold;">Select Your Role to Login:</label>
+                    <select id="login-role">
+                        ${users.map(u => `<option value="${u.role}">${u.role} (${u.name})</option>`).join('')}
+                    </select>
+                    <input id="lp" type="password" placeholder="Verify Password">
+                    <button onclick="doMark()">Confirm Attendance</button>
                     
                     <div class="links">
-                        <a class="link-btn" href="https://medai.vercel.app" target="_blank">Med AI</a>
-                        <a class="link-btn" href="https://uniai.vercel.app" target="_blank">Uni AI</a>
-                        <a class="link-btn" href="https://weblite2.vercel.app" target="_blank">Weblite</a>
-                        <a class="link-btn" href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
+                        <a href="https://medai.vercel.app" target="_blank">Med AI</a>
+                        <a href="https://uniai.vercel.app" target="_blank">Uni AI</a>
+                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
+                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
-                `;
-            }
-        } catch (e) {
-            app.innerHTML = `<h2 style="color:#ef4444">Connection Error</h2><p style="font-size:13px;">${e.message}</p>`;
+                </div>
+                
+                <div class="card">
+                    <h2>Live Console & Chat</h2>
+                    <div id="console-box"># SYSTEM INITIALIZED...<br># READY FOR CODE INPUT<br></div>
+                    <div id="chat-box"></div>
+                    <div style="display:flex; gap:5px;">
+                        <input id="m" placeholder="Message or 'code: ...'">
+                        <button onclick="sendMsg()" style="width:80px;">Send</button>
+                    </div>
+                </div>
+            `;
+            loadMessages();
+            // Listen for Realtime Chat
+            db.channel('any').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                appendMessage(payload.new);
+            }).subscribe();
         }
     }
 
-    async function register() {
-        const name = document.getElementById('n').value;
-        const role = document.getElementById('r').value;
-        const pass = document.getElementById('p').value;
-        if (!name || !pass) return alert("All fields are required!");
-
-        const { error } = await db.from('attendance').insert([{ name, role, pass, last_marked: "" }]);
-        if (error) alert(error.message); else start();
+    async function doReg() {
+        const n = document.getElementById('n').value;
+        const r = document.getElementById('r').value;
+        const p = document.getElementById('p').value;
+        if(!n || !p) return alert("Fill all fields");
+        await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
+        start();
     }
 
-    async function mark() {
-        const pass = document.getElementById('lp').value;
+    async function doMark() {
+        const selectedRole = document.getElementById('login-role').value;
+        const inputPass = document.getElementById('lp').value;
         const today = new Date().toDateString();
-        const { data, error } = await db.from('attendance').update({ last_marked: today }).eq('pass', pass).select();
-        
+
+        // Check password SPECIFIC to the selected role
+        const { data, error } = await db.from('attendance')
+            .update({ last_marked: today })
+            .match({ role: selectedRole, pass: inputPass }) // Must match BOTH
+            .select();
+
         if (data && data.length > 0) {
-            alert("Attendance marked!");
+            currentUser = data[0];
+            alert(`Welcome back, ${currentUser.role}!`);
             start();
         } else {
-            alert("Invalid Password!");
+            alert("Password incorrect for the selected Role.");
+        }
+    }
+
+    async function sendMsg() {
+        const input = document.getElementById('m');
+        if (!currentUser) return alert("Please login/mark attendance first!");
+        if (!input.value) return;
+
+        const isCode = input.value.startsWith('code:');
+        const content = isCode ? input.value.replace('code:', '').trim() : input.value;
+        
+        await db.from('messages').insert([{ sender_name: `${currentUser.role}: ${currentUser.name}`, content, is_code: isCode }]);
+        input.value = "";
+    }
+
+    async function loadMessages() {
+        const { data } = await db.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+        if(data) data.forEach(appendMessage);
+    }
+
+    function appendMessage(msg) {
+        if (msg.is_code) {
+            const con = document.getElementById('console-box');
+            con.innerHTML += `<div style="color:#aaa; margin-top:5px;">// Sent by ${msg.sender_name}</div>`;
+            con.innerHTML += `<div style="margin-bottom:10px;">> ${msg.content}</div>`;
+            con.scrollTop = con.scrollHeight;
+        } else {
+            const chat = document.getElementById('chat-box');
+            chat.innerHTML += `<div class="msg"><strong>${msg.sender_name}:</strong> ${msg.content}</div>`;
+            chat.scrollTop = chat.scrollHeight;
         }
     }
 
