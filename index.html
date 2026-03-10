@@ -11,27 +11,22 @@
         .grid { display: grid; grid-template-columns: 350px 550px; gap: 20px; max-width: 950px; width: 100%; }
         .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         h2 { color: var(--blue); margin: 0 0 15px 0; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
-        
         .status-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
         .present { color: #16a34a; font-weight: bold; background: #f0fdf4; padding: 2px 8px; border-radius: 4px; }
         .pending { color: #94a3b8; font-style: italic; }
-        
         #chat { height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 10px; border-radius: 8px; background: #fff; }
         #console { height: 280px; overflow-y: auto; background: #0f172a; color: #10b981; font-family: 'Consolas', monospace; padding: 15px; border-radius: 8px; font-size: 0.8rem; border: 2px solid #1e293b; line-height: 1.4; }
-        
         input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 0.9rem; }
-        button { background: var(--blue); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #1d4ed8; }
-        
+        button { background: var(--blue); color: white; border: none; font-weight: bold; cursor: pointer; }
         .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
-        .links a { font-size: 0.75rem; text-align: center; background: #fff; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: var(--blue); font-weight: 500; }
+        .links a { font-size: 0.75rem; text-align: center; background: #fff; padding: 8px; text-decoration: none; border-radius: 6px; border: 1px solid #e2e8f0; color: var(--blue); }
         .logout-btn { background: #64748b; font-size: 0.75rem; margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div id="root" style="width: 100%; display: flex; justify-content: center;">
-    <div class="card"><h2>Connecting to harshj58 server...</h2></div>
+    <div class="card"><h2>Connecting...</h2></div>
 </div>
 
 <script>
@@ -46,40 +41,54 @@
         const { data } = await db.from('attendance').select('*');
         employees = data || [];
         
-        if (employees.length < 5) return renderSignup();
-        
-        const saved = localStorage.getItem('company_user');
-        if (saved) {
-            user = JSON.parse(saved);
-            renderDash();
+        const savedUser = localStorage.getItem('logged_in_user');
+
+        if (employees.length < 5) {
+            renderSignup();
+        } else if (savedUser) {
+            // AUTO-LOGIN: Find the user data again to make sure it's fresh
+            user = employees.find(u => u.role === savedUser);
+            if (user) {
+                renderDash();
+            } else {
+                renderLogin();
+            }
         } else {
             renderLogin();
         }
     }
 
-    // --- RENDER SCREENS ---
-
     function renderSignup() {
         const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
         const registered = employees.map(e => e.role);
         const available = roles.filter(r => !registered.includes(r));
-        
         document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
-            <h2>Registration (${employees.length}/5)</h2>
-            <input id="rn" placeholder="Your Full Name">
-            <select id="rr">${available.map(r => `<option>${r}</option>`).join('')}</select>
-            <input id="rp" type="password" placeholder="Create Password">
-            <button onclick="doReg()">Register Account</button>
+            <h2>Staff Registration (${employees.length}/5)</h2>
+            <input id="rn" placeholder="Name"><select id="rr">${available.map(r => `<option>${r}</option>`).join('')}</select>
+            <input id="rp" type="password" placeholder="Password"><button onclick="doReg()">Register</button>
         </div>`;
     }
 
     function renderLogin() {
         document.getElementById('root').innerHTML = `<div class="card" style="width:380px;">
-            <h2>Portal Verification</h2>
-            <select id="lr">${employees.map(e => `<option value="${e.role}">${e.role} (${e.name})</option>`).join('')}</select>
-            <input id="lp" type="password" placeholder="Enter Password">
-            <button onclick="doLogin()">Verify & Enter</button>
+            <h2>Portal Login</h2>
+            <select id="lr">${employees.map(e => `<option value="${e.role}">${e.role}</option>`).join('')}</select>
+            <input id="lp" type="password" placeholder="Password"><button onclick="doLogin()">Login</button>
         </div>`;
+    }
+
+    function doLogin() {
+        const r = document.getElementById('lr').value;
+        const p = document.getElementById('lp').value;
+        const found = employees.find(x => x.role === r && x.pass === p);
+        if (found) {
+            user = found;
+            // SAVE TO BROWSER MEMORY
+            localStorage.setItem('logged_in_user', user.role);
+            renderDash();
+        } else {
+            alert("Wrong Password");
+        }
     }
 
     function renderDash() {
@@ -90,20 +99,19 @@
                     <div id="list-container"></div>
                     <button onclick="doMark()" style="background:#16a34a;margin-top:15px;">Mark Present</button>
                     <div class="links">
-                        <a href="https://groqmedai.vercel.app" target="_blank">Med AI</a>
+                        <a href="https://gorqmedai.vercel.app" target="_blank">Med AI</a>
                         <a href="https://groquniai.vercel.app" target="_blank">Uni AI</a>
                         <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
                         <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
-                    <button class="logout-btn" onclick="logout()">Logout / Change User</button>
+                    <button class="logout-btn" onclick="logout()">Switch Account</button>
                 </div>
                 <div class="card">
                     <h2>Live Chat & Console</h2>
-                    <div id="console"># SYSTEM ONLINE...<br></div>
+                    <div id="console"># SYSTEM READY...<br></div>
                     <div id="chat"></div>
                     <div style="display:flex;gap:5px;">
-                        <input id="m" placeholder="Message or 'code: ...'" style="margin:0;">
-                        <button onclick="doSend()" style="width:80px;margin:0;">Send</button>
+                        <input id="m" placeholder="Message..." style="margin:0;"><button onclick="doSend()" style="width:80px;margin:0;">Send</button>
                     </div>
                 </div>
             </div>`;
@@ -111,48 +119,18 @@
         loadMessages();
     }
 
-    // --- ACTIONS ---
-
-    async function doReg() {
-        const n = document.getElementById('rn').value;
-        const r = document.getElementById('rr').value;
-        const p = document.getElementById('rp').value;
-        if(!n || !p) return alert("Fill all fields");
-        await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
+    async function doMark() {
+        const today = new Date().toDateString();
+        await db.from('attendance').update({ last_marked: today }).eq('id', user.id);
         location.reload(); 
     }
 
-    function doLogin() {
-        const r = document.getElementById('lr').value;
-        const p = document.getElementById('lp').value;
-        const found = employees.find(x => x.role === r && x.pass === p);
-        if (found) {
-            user = found;
-            localStorage.setItem('company_user', JSON.stringify(user));
-            renderDash();
-        } else {
-            alert("Password Incorrect for " + r);
-        }
-    }
-
-    async function doMark() {
-        const today = new Date().toDateString();
-        const { error } = await db.from('attendance').update({ last_marked: today }).eq('id', user.id);
-        if (error) alert(error.message);
-        else location.reload(); // Refresh to show green checkmark
-    }
-
     async function doSend() {
-        const i = document.getElementById('m');
-        if(!i.value) return;
-        const isCode = i.value.startsWith('code:');
-        const content = isCode ? i.value.replace('code:', '').trim() : i.value;
-        
-        await db.from('messages').insert([{ sender_name: user.role, content: content, is_code: isCode }]);
-        location.reload(); // Refresh to show the message
+        const i = document.getElementById('m'); if(!i.value) return;
+        const isC = i.value.startsWith('code:'), content = isC ? i.value.replace('code:', '').trim() : i.value;
+        await db.from('messages').insert([{ sender_name: user.role, content: content, is_code: isC }]);
+        location.reload();
     }
-
-    // --- HELPERS ---
 
     function updateAttendanceList() {
         const div = document.getElementById('list-container');
@@ -160,31 +138,30 @@
         div.innerHTML = employees.map(e => `
             <div class="status-row">
                 <span><strong>${e.role}:</strong> ${e.name}</span>
-                <span class="${e.last_marked === today ? 'present' : 'pending'}">
-                    ${e.last_marked === today ? '✓ Present' : 'Pending'}
-                </span>
+                <span class="${e.last_marked === today ? 'present' : 'pending'}">${e.last_marked === today ? '✓ Present' : 'Pending'}</span>
             </div>`).join('');
     }
 
     async function loadMessages() {
         const { data } = await db.from('messages').select('*').order('created_at', { ascending: true });
         if(data) {
-            const chat = document.getElementById('chat');
-            const con = document.getElementById('console');
+            const chat = document.getElementById('chat'), con = document.getElementById('console');
             data.forEach(m => {
-                if (m.is_code) {
-                    con.innerHTML += `<div>> [${m.sender_name}]: ${m.content}</div>`;
-                } else {
-                    chat.innerHTML += `<div style="margin-bottom:5px;"><strong>${m.sender_name}:</strong> ${m.content}</div>`;
-                }
+                if (m.is_code) con.innerHTML += `<div>> [${m.sender_name}]: ${m.content}</div>`;
+                else chat.innerHTML += `<div><strong>${m.sender_name}:</strong> ${m.content}</div>`;
             });
-            chat.scrollTop = chat.scrollHeight;
-            con.scrollTop = con.scrollHeight;
+            chat.scrollTop = chat.scrollHeight; con.scrollTop = con.scrollHeight;
         }
     }
 
+    async function doReg() {
+        const n = document.getElementById('rn').value, r = document.getElementById('rr').value, p = document.getElementById('rp').value;
+        await db.from('attendance').insert([{ name: n, role: r, pass: p, last_marked: "" }]);
+        location.reload(); 
+    }
+
     function logout() {
-        localStorage.clear();
+        localStorage.removeItem('logged_in_user');
         location.reload();
     }
 
