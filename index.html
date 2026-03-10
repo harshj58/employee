@@ -2,33 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Company Portal | harshj58</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; justify-content: center; padding: 40px; background: #f4f7f6; color: #333; }
-        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 380px; }
-        h2 { color: #2563eb; text-align: center; margin-bottom: 20px; }
-        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 14px; }
-        button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 40px; background: #f0f2f5; color: #1e293b; }
+        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { color: #2563eb; text-align: center; margin-top: 0; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #cbd5e1; box-sizing: border-box; font-size: 1rem; }
+        button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
         button:hover { background: #1d4ed8; }
-        .links { margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .links a { background: #f8fafc; padding: 8px; border-radius: 5px; text-decoration: none; color: #2563eb; font-size: 12px; text-align: center; border: 1px solid #e2e8f0; }
-        .status-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .status-box { margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .status-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+        .status-row:last-child { border-bottom: none; }
         .present { color: #16a34a; font-weight: bold; }
         .pending { color: #94a3b8; font-style: italic; }
+        .links { margin-top: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #eee; padding-top: 20px; }
+        .link-btn { background: #f8fafc; color: #2563eb; padding: 10px; border-radius: 6px; text-decoration: none; text-align: center; font-size: 0.85rem; border: 1px solid #e2e8f0; font-weight: 500; }
     </style>
 </head>
 <body>
 
 <div class="card" id="app">
-    <h2>Connecting...</h2>
-    <p style="text-align: center; font-size: 12px; color: #666;">If this takes long, ensure you ran the SQL script in Supabase.</p>
+    <h2 style="color: #64748b;">Connecting...</h2>
 </div>
 
 <script>
-    // 1. CONFIGURATION (Use 'db' instead of 'supabase' to avoid the error)
+    // --- CONFIGURATION ---
     const S_URL = "https://xytfdcqemvjmriitieyi.supabase.co";
-    const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5dGZkY3FlbXZqbXJpaXRpZXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjg4MjAsImV4cCI6MjA4ODY0NDgyMH0.8kSa4qTAQWmngOJ4Ctp5qTij5oL_NdaW3FL6fC3Vo_U"; 
+    const S_KEY = "PASTE_YOUR_ANON_KEY_HERE"; 
     const db = supabase.createClient(S_URL, S_KEY);
 
     async function start() {
@@ -38,25 +40,23 @@
             if (error) throw error;
 
             if (users.length < 5) {
-                // PHASE 1: SIGNUP
                 const roles = ["CEO", "VICE PRESIDENT", "STOCK HANDLER", "LAWYER", "EMPLOYEE"];
                 const taken = users.map(u => u.role);
                 const available = roles.filter(r => !taken.includes(r));
 
                 app.innerHTML = `
                     <h2>Company Setup</h2>
-                    <p style="text-align:center;">${users.length}/5 Roles Registered</p>
-                    <input id="n" placeholder="Full Name">
+                    <p style="text-align:center;">Step: ${users.length}/5 Users Joined</p>
+                    <input id="n" placeholder="Your Full Name">
                     <select id="r">${available.map(r => `<option>${r}</option>`).join('')}</select>
-                    <input id="p" type="password" placeholder="Set Password">
+                    <input id="p" type="password" placeholder="Create Password">
                     <button onclick="register()">Register Account</button>
                 `;
             } else {
-                // PHASE 2: DASHBOARD
                 const today = new Date().toDateString();
                 app.innerHTML = `
-                    <h2>Attendance Dashboard</h2>
-                    <div style="margin-bottom: 20px;">
+                    <h2>Attendance Panel</h2>
+                    <div class="status-box">
                         ${users.map(u => `
                             <div class="status-row">
                                 <span><strong>${u.role}:</strong> ${u.name}</span>
@@ -66,19 +66,19 @@
                             </div>
                         `).join('')}
                     </div>
-                    <input id="lp" type="password" placeholder="Your Password">
-                    <button onclick="mark()">Mark My Attendance</button>
+                    <input id="lp" type="password" placeholder="Enter Password">
+                    <button onclick="mark()">Mark Attendance</button>
                     
                     <div class="links">
-                        <a href="https://medai.vercel.app" target="_blank">Med AI</a>
-                        <a href="https://uniai.vercel.app" target="_blank">Uni AI</a>
-                        <a href="https://weblite2.vercel.app" target="_blank">Weblite</a>
-                        <a href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
+                        <a class="link-btn" href="https://medai.vercel.app" target="_blank">Med AI</a>
+                        <a class="link-btn" href="https://uniai.vercel.app" target="_blank">Uni AI</a>
+                        <a class="link-btn" href="https://weblite2.vercel.app" target="_blank">Weblite</a>
+                        <a class="link-btn" href="https://pokeslasher.vercel.app" target="_blank">Pokemon Slasher</a>
                     </div>
                 `;
             }
         } catch (e) {
-            app.innerHTML = `<h2 style="color:red">Setup Error</h2><p style="font-size:12px;">${e.message}</p>`;
+            app.innerHTML = `<h2 style="color:#ef4444">Connection Error</h2><p style="font-size:13px;">${e.message}</p>`;
         }
     }
 
@@ -86,8 +86,8 @@
         const name = document.getElementById('n').value;
         const role = document.getElementById('r').value;
         const pass = document.getElementById('p').value;
-        if (!name || !pass) return alert("Fill all fields");
-        
+        if (!name || !pass) return alert("All fields are required!");
+
         const { error } = await db.from('attendance').insert([{ name, role, pass, last_marked: "" }]);
         if (error) alert(error.message); else start();
     }
@@ -98,10 +98,10 @@
         const { data, error } = await db.from('attendance').update({ last_marked: today }).eq('pass', pass).select();
         
         if (data && data.length > 0) {
-            alert("Attendance recorded for today!");
+            alert("Attendance marked!");
             start();
         } else {
-            alert("Incorrect password!");
+            alert("Invalid Password!");
         }
     }
 
